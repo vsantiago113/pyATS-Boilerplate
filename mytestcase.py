@@ -1,5 +1,6 @@
 from pyats.topology import Testbed, Device
 from pyats import aetest
+import re
 from unicon.eal import dialogs
 
 # https://pubhub.devnetcloud.com/media/pyats/docs/topology/creation.html#manual-creation
@@ -22,13 +23,14 @@ class ScriptCommonSetup(aetest.CommonSetup):
         The two links above shows you how to create the YAML file and how to load it."""
 
         # https://pubhub.devnetcloud.com/media/pyats/docs/topology/concept.html#testbed-object
-        testbed.credentials['default'] = dict(username=self.parameters.get('username'),
-                                              password=self.parameters.get('password'))
+        # https://pubhub.devnetcloud.com/media/unicon/docs/user_guide/passwords.html#password-handling
+        testbed.credentials['default'] = dict(username=self.parameters['username'],
+                                              password=self.parameters['password'])
 
         # https://pubhub.devnetcloud.com/media/pyats/docs/topology/concept.html#device-objects
         # https://pubhub.devnetcloud.com/media/pyats/docs/topology/creation.html#manual-creation
-        my_devices = {'SW1': {'os': 'iosxe', 'ip': '192.168.1.201', 'serial_number': '1234567890'},
-                      'SW2': {'os': 'iosxe', 'ip': '192.168.1.202', 'serial_number': '0987654321'}}
+        my_devices = {'SW1': {'os': 'ios', 'ip': '192.168.1.201', 'serial_number': '1234567890'},
+                      'SW2': {'os': 'ios', 'ip': '192.168.1.202', 'serial_number': '0987654321'}}
         for k, v in my_devices.items():
             device = Device(k,
                             os=v['os'],
@@ -59,27 +61,61 @@ class MyTestcase(aetest.Testcase):
     def establish_connection(self, section, switch):
         section.name = 'Establish Connection'
 
-        device = testbed.devices[switch]
+        self.parameters['device'] = testbed.devices[switch]
 
         # https://pubhub.devnetcloud.com/media/unicon/docs/user_guide/connection.html#connection-basics
         # https://pubhub.devnetcloud.com/media/unicon/docs/user_guide/connection.html#customizing-your-connection
         # https://pubhub.devnetcloud.com/media/pyats/docs/getting_started/index.html#connect-and-issue-commands
-        device.connect(learn_hostname=True, connection_timeout=10, log_stdout=False,
-                       init_exec_commands=['term length 0', 'term width 0'])
-
-        device.execute('show ip int b')
-
-        device.disconnect()
+        self.parameters['device'].connect(learn_hostname=True, connection_timeout=10, log_stdout=False,
+                                          init_exec_commands=['term length 0', 'term width 0'], logfile='mypyats.log')
 
     # https://pubhub.devnetcloud.com/media/pyats/docs/aetest/structure.html#test-sections
     @aetest.test
-    def testcase_part1(self, section, switch):
-        section.name = 'Testcase Part 1'
+    def check_management_vlan(self, section, steps):
+        section.name = 'Check if Management VLAN Exists'
+
+        # https://pubhub.devnetcloud.com/media/unicon/docs/api/unicon.eal.html?highlight=dialog#module-unicon.eal.dialogs
+        # https://pubhub.devnetcloud.com/media/unicon/docs/user_guide/services/service_dialogs.html?highlight=dialog
+        """Example of using Dialogs
+        dialog = dialogs.Dialog([dialogs.Statement(pattern=r'.*Are you sure you want to continue\?.*',
+                                                   action="sendline({'key': 'y'})",
+                                                   args=None,
+                                                   loop_continue=True,
+                                                   continue_timer=False
+                                                   )
+                                 ])
+        output = self.parameters['device'].execute('show ip int b', reply=dialog)
+        """
+
+        # https://pubhub.devnetcloud.com/media/unicon/docs/user_guide/services/generic_services.html#configure
+        """To configure a device and send configurations check this URL above."""
+
+        output = self.parameters['device'].execute('show ip int b')
+
+        # https://pubhub.devnetcloud.com/media/pyats/docs/aetest/steps.html?highlight=steps#section-steps
+        with steps.start('Checking Vlan99 and IP Address', continue_=True) as step:
+
+            # https://docs.python.org/3/howto/regex.html
+            match = re.search(r'(?P<vlan>vlan99)\s+(?P<ip>(?:\d{1,3}[.]?){4})', output, flags=re.IGNORECASE)
+            if match:
+                with step.start('Management Vlan', description='Checking if Vlan99 exists and is configured correctly.',
+                                continue_=True) as sub_step:
+                    if match.group('ip').startswith('192.168.1.20'):
+                        sub_step.passed(f'Vlan: "Vlan99" has the following IP Address set: "{match.group("ip")}"')
+                    else:
+                        sub_step.failed(f'Vlan99 is not set correctly, found IP Address: "{match.group("ip")}"')
+            else:
+                step.failed('Vlan99 does not exists or does not have an IP Address set!')
 
     # https://pubhub.devnetcloud.com/media/pyats/docs/aetest/structure.html#cleanup-section
     @aetest.cleanup
-    def testcase_cleanup(self, section, switch):
-        section.name = 'Cleanup'
+    def disconnect_from_device(self, section):
+        section.name = 'Disconnect from Device'
+
+        # https://pubhub.devnetcloud.com/media/pyats/docs/connections/class.html#baseconnection
+        if self.parameters['device'].connected:
+            self.parameters['device'].disconnect()
+        self.parameters.pop('device', None)
 
 
 # https://pubhub.devnetcloud.com/media/pyats/docs/aetest/structure.html#common-cleanup
@@ -88,7 +124,7 @@ class ScriptCommonCleanup(aetest.CommonCleanup):
 
     # https://pubhub.devnetcloud.com/media/pyats/docs/aetest/structure.html#subsections
     @aetest.subsection
-    def disconnect_from_device(self):
+    def cleanup_section(self):
         pass
 
 

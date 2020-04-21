@@ -36,3 +36,7 @@ def main(runtime):
     task1 = Task('mytestcase.py', runtime=runtime, taskid='Testing', username=args.username, password=args.password)
     task1.start()
     task1.join()
+
+
+"""Exaple of running the pyATS script"""
+# pyats run job ./pyats_job.py --html-logs . --username --password
