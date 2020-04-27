@@ -3,6 +3,10 @@ from pyats import aetest
 import re
 from unicon.eal import dialogs
 
+# A Guide to getting started with Genie:
+# https://pubhub.devnetcloud.com/media/genie-docs/docs/cookbooks/index.html
+# -------------------------------------------------------------------------
+
 # https://pubhub.devnetcloud.com/media/pyats/docs/topology/creation.html#manual-creation
 testbed = Testbed(name='dynamic_testbed')
 
