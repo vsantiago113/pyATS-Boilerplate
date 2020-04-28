@@ -28,6 +28,7 @@ class ScriptCommonSetup(aetest.CommonSetup):
 
         # https://pubhub.devnetcloud.com/media/pyats/docs/topology/concept.html#testbed-object
         # https://pubhub.devnetcloud.com/media/unicon/docs/user_guide/passwords.html#password-handling
+        # https://pubhub.devnetcloud.com/media/pyats/docs/topology/creation.html?highlight=ask#testbed-file-markups
         testbed.credentials['default'] = dict(username=self.parameters['username'],
                                               password=self.parameters['password'])
 
